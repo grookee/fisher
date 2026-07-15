@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fisher}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fisher}
+      POSTGRES_DB: ${POSTGRES_DB:-fisher}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fisher}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://fisher:fisher@db:5432/fisher?sslmode=disable}
+      JWT_SECRET: ${JWT_SECRET:-fisher-dev-secret-change-in-production}
+      PORT: "8080"
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8080/api/auth/spotify/callback}
+      APPLE_MUSIC_DEVELOPER_TOKEN: ${APPLE_MUSIC_DEVELOPER_TOKEN:-}
+      LASTFM_API_KEY: ${LASTFM_API_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      DEBUG: ${DEBUG:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
+      VITE_DEBUG: ${DEBUG:-false}
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

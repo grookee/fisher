@@ -1,0 +1,53 @@
+# Environment & secrets
+.env
+.env.local
+.env.production
+
+# Go
+backend/*.exe
+backend/*.test
+backend/*.out
+backend/vendor/
+
+# Node / Frontend
+node_modules/
+frontend/build/
+frontend/.svelte-kit/
+frontend/dist/
+
+# Docker
+docker-compose.override.yml
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database backups
+*.sql
+*.dump
+
+# Compiled binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Temporary / scratch files
+conversation.md
+plan.md
+work in progress.md
+TODO.md
+Genre Adjacency Graph for Music Discovery.md
+Music App Feature Backlog.md
+enrich-loop.ps1
+ingest-tracks-loop.ps1
+ingest-tracks.ps1
