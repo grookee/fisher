@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 const GET_CACHE_TTL_MS = 120000;
 const getCache = new Map();

@@ -40,11 +40,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
       VITE_DEBUG: ${DEBUG:-false}
     depends_on:
       - backend
