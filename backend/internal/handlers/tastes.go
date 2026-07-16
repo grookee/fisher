@@ -310,15 +310,11 @@ func (h *TasteHandler) Analyze(w http.ResponseWriter, r *http.Request) {
 
 	if source == "spotify" || source == "combined" {
 		debug.Log("Analyze: checking spotify source")
-		var accessToken string
-		err := database.Pool.QueryRow(r.Context(),
-			`SELECT access_token FROM user_accounts WHERE user_id = $1 AND service = 'spotify'`,
-			claims.UserID,
-		).Scan(&accessToken)
-		if err != nil {
-			debug.Logf("Analyze: no spotify token for user=%s: %v", claims.UserID, err)
+		accessToken := spotifyTokenForUser(r.Context(), claims.UserID)
+		if accessToken == "" {
+			debug.Logf("Analyze: no spotify token for user=%s", claims.UserID)
 		}
-		if err == nil {
+		if accessToken != "" {
 			debug.Logf("Analyze: calling Spotify AnalyzeTasteExtended for user=%s time_range=%s", claims.UserID, timeRange)
 			result, spErr := spotifysvc.AnalyzeTasteExtended(accessToken, timeRange)
 			if spErr != nil {
