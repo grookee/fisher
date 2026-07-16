@@ -67,15 +67,11 @@ func (h *TasteHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var topArtists []string
-	database.Pool.QueryRow(r.Context(),
-		`SELECT top_artists FROM taste_profiles WHERE user_id = $1`, userID,
-	).Scan(&topArtists)
-	profile.TopArtists = topArtists
-
 	var topTracksJSON []byte
 	database.Pool.QueryRow(r.Context(),
-		`SELECT top_tracks FROM taste_profiles WHERE user_id = $1`, userID,
-	).Scan(&topTracksJSON)
+		`SELECT top_artists, top_tracks FROM taste_profiles WHERE user_id = $1`, userID,
+	).Scan(&topArtists, &topTracksJSON)
+	profile.TopArtists = topArtists
 	if len(topTracksJSON) > 0 && string(topTracksJSON) != "null" {
 		json.Unmarshal(topTracksJSON, &profile.TopTracks)
 	}
@@ -171,11 +167,17 @@ func (h *TasteHandler) Unshare(w http.ResponseWriter, r *http.Request) {
 func (h *TasteHandler) FriendsTastes(w http.ResponseWriter, r *http.Request) {
 	claims := auth.GetUser(r.Context())
 
+	type FriendTaste struct {
+		UserID string              `json:"user_id"`
+		Genres []models.GenreWeight `json:"genres"`
+	}
+
 	rows, err := database.Pool.Query(r.Context(),
-		`SELECT DISTINCT u.id FROM taste_shares ts
-		 JOIN users u ON u.id = ts.user_id
+		`SELECT ts.user_id, tg.genre_id, tg.weight
+		 FROM taste_shares ts
+		 JOIN taste_genres tg ON tg.user_id = ts.user_id
 		 WHERE ts.shared_with = $1
-		 LIMIT 50`,
+		 ORDER BY ts.user_id, tg.weight DESC`,
 		claims.UserID,
 	)
 	if err != nil {
@@ -184,30 +186,24 @@ func (h *TasteHandler) FriendsTastes(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	type FriendTaste struct {
-		UserID string              `json:"user_id"`
-		Genres []models.GenreWeight `json:"genres"`
-	}
-
 	results := []FriendTaste{}
-	for rows.Next() {
-		var uid string
-		rows.Scan(&uid)
+	currentUID := ""
+	var current *FriendTaste
 
-		ft := FriendTaste{UserID: uid}
-		gRows, _ := database.Pool.Query(r.Context(),
-			`SELECT genre_id, weight FROM taste_genres WHERE user_id = $1 ORDER BY weight DESC LIMIT 5`,
-			uid,
-		)
-		if gRows != nil {
-			for gRows.Next() {
-				var gw models.GenreWeight
-				gRows.Scan(&gw.GenreID, &gw.Weight)
-				ft.Genres = append(ft.Genres, gw)
-			}
-			gRows.Close()
+	for rows.Next() {
+		var uid, genreID string
+		var weight float64
+		rows.Scan(&uid, &genreID, &weight)
+
+		if uid != currentUID {
+			ft := FriendTaste{UserID: uid}
+			results = append(results, ft)
+			current = &results[len(results)-1]
+			currentUID = uid
 		}
-		results = append(results, ft)
+		if current != nil && len(current.Genres) < 5 {
+			current.Genres = append(current.Genres, models.GenreWeight{GenreID: genreID, Weight: weight})
+		}
 	}
 
 	if results == nil {

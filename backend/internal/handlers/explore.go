@@ -181,18 +181,27 @@ func (h *ExploreHandler) MissedGenres(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parents := make([]string, 0, len(topGenreIDs))
-	for _, gid := range topGenreIDs {
-		var parentID *string
-		err := database.Pool.QueryRow(r.Context(),
-			`SELECT parent_id FROM genres WHERE id = $1`, gid,
-		).Scan(&parentID)
-		if err != nil {
-			continue
+	if len(topGenreIDs) > 0 {
+		placeholders := make([]string, len(topGenreIDs))
+		args := make([]interface{}, len(topGenreIDs))
+		for i, gid := range topGenreIDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = gid
 		}
-		if parentID != nil {
-			parents = append(parents, *parentID)
-		} else {
-			parents = append(parents, gid)
+		query := fmt.Sprintf(`SELECT id, parent_id FROM genres WHERE id IN (%s)`, strings.Join(placeholders, ","))
+		pRows, err := database.Pool.Query(r.Context(), query, args...)
+		if err == nil {
+			defer pRows.Close()
+			for pRows.Next() {
+				var id string
+				var parentID *string
+				pRows.Scan(&id, &parentID)
+				if parentID != nil {
+					parents = append(parents, *parentID)
+				} else {
+					parents = append(parents, id)
+				}
+			}
 		}
 	}
 

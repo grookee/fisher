@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/fisher/backend/internal/database"
 	"github.com/fisher/backend/internal/debug"
@@ -34,19 +35,13 @@ func (h *DiscoverHandler) Discover(w http.ResponseWriter, r *http.Request) {
 
 	svc := &spotifysvc.Service{}
 
-	searchGenre := func(name string, lmt int) []spotifysvc.SearchResult {
-		t, err := svc.SearchTracks(name, lmt)
-		if err != nil {
-			debug.Logf("Discover: search for %q failed: %v", name, err)
-			return nil
-		}
-		return t
-	}
-
 	var tracks []spotifysvc.SearchResult
 	seen := map[string]bool{}
+	var mu sync.Mutex
 
 	addUnique := func(list []spotifysvc.SearchResult) {
+		mu.Lock()
+		defer mu.Unlock()
 		for _, t := range list {
 			if !seen[t.ID] {
 				seen[t.ID] = true
@@ -56,7 +51,10 @@ func (h *DiscoverHandler) Discover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if genre != "" {
-		t := searchGenre(genre, limit)
+		t, err := svc.SearchTracks(genre, limit)
+		if err != nil {
+			debug.Logf("Discover: search for %q failed: %v", genre, err)
+		}
 		addUnique(t)
 	} else {
 		var genreNames []string
@@ -79,21 +77,30 @@ func (h *DiscoverHandler) Discover(w http.ResponseWriter, r *http.Request) {
 		if perGenre < 5 {
 			perGenre = 5
 		}
+
+		var wg sync.WaitGroup
 		for _, gn := range genreNames {
-			t := searchGenre(gn, perGenre)
-			if len(t) > 0 {
-				addUnique(t)
-				if len(tracks) >= limit {
-					break
+			wg.Add(1)
+			go func(name string) {
+				defer wg.Done()
+				t, err := svc.SearchTracks(name, perGenre)
+				if err != nil {
+					debug.Logf("Discover: search for %q failed: %v", name, err)
+					return
 				}
-			}
+				addUnique(t)
+			}(gn)
 		}
+		wg.Wait()
 
 		if len(tracks) < limit {
 			needed := limit - len(tracks)
 			seed := discoverSeeds[rand.Intn(len(discoverSeeds))]
 			debug.Logf("Discover: need %d more tracks, trying seed %q", needed, seed)
-			t := searchGenre(seed, needed)
+			t, err := svc.SearchTracks(seed, needed)
+			if err != nil {
+				debug.Logf("Discover: seed search for %q failed: %v", seed, err)
+			}
 			addUnique(t)
 		}
 	}

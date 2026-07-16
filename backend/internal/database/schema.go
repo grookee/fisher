@@ -199,6 +199,16 @@ var schemaMigrations = []string{
 		ALTER TABLE tracks ADD COLUMN deezer_id VARCHAR(64) DEFAULT '';
 	EXCEPTION WHEN duplicate_column THEN END $$`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_deezer_id ON tracks(deezer_id) WHERE deezer_id <> ''`,
+	// Performance indexes
+	`CREATE INDEX IF NOT EXISTS idx_playlists_owner_id ON playlists(owner_id)`,
+	`CREATE INDEX IF NOT EXISTS idx_playlists_updated_at ON playlists(updated_at DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_friends_friend_id ON friends(friend_id, user_id) WHERE status = 'accepted'`,
+	`CREATE INDEX IF NOT EXISTS idx_friends_user_status ON friends(user_id) WHERE status = 'accepted'`,
+	`CREATE INDEX IF NOT EXISTS idx_taste_genres_user_weight ON taste_genres(user_id, weight DESC)`,
+	`CREATE INDEX IF NOT EXISTS idx_taste_shares_shared_with ON taste_shares(shared_with)`,
+	`CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist)`,
+	`CREATE INDEX IF NOT EXISTS idx_tracks_release_year ON tracks(release_year)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_apple_music_id ON tracks(apple_music_id) WHERE apple_music_id <> ''`,
 	// Backfill: normalize ISO country codes to full names and deduplicate.
 	// This runs via a DO block that uses a temporary function.
 	`DO $$
